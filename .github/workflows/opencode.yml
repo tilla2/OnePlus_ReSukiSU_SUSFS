@@ -69,10 +69,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          persist-credentials: true # 这里必须为 true，因为我们要进行 Pre-emptive Commit
+          persist-credentials: true
           fetch-depth: 0
 
-      # 关键步骤：合并、清洗、配置、并提交。确保工作区 100% 干净
+      # 关键步骤：合并、清洗、配置 .gitignore，并提交。最后生成被忽略的 config
       - name: Prepare Codebase & Config
         shell: bash
         env:
@@ -94,15 +94,14 @@ jobs:
             echo "::endgroup::"
           fi
 
-          # 2. 自动清洗
-          echo "::group::Sanitizing"
+          # 2. 自动清洗代码并配置 .gitignore
+          echo "::group::Sanitize & Ignore Rules"
           find manifests -name "*.xml" -exec sed -i 's|github.com/WildKernels/AnyKernel3|github.com/huangdihd/AnyKernel3|g' {} +
           find manifests -name "*.xml" -exec sed -i 's|fetch="https://github.com/WildKernels" name="wild"|fetch="https://github.com/huangdihd" name="wild"|g' {} +
           find manifests -name "*.xml" -exec sed -i -E 's/(name="AnyKernel3".*revision=")[^"]+(")/\1gki-2.0\2/g' {} +
           find configs -name "*.json" -exec sed -i 's/"uname": "OP-WILD"/"uname": "OP-RESUKISU"/g' {} +
           sed -i 's|https://github.com/WildKernels/AnyKernel3|https://github.com/huangdihd/AnyKernel3|g' .github/actions/build-kernel/action.yml
           
-          # 强制删除 KSUN 相关步骤 (Python 处理)
           python3 -c "
           import os
           path = '.github/actions/build-kernel/action.yml'
@@ -115,10 +114,19 @@ jobs:
                 if not skip: new_lines.append(line)
             with open(path, 'w') as f: f.writelines(new_lines)
           "
+
+          # 加入 ignore 列表，防止 opencode.json 导致 checkout 冲突
+          echo "opencode.json" >> .gitignore
+          echo "guidelines.txt" >> .gitignore
+          echo "final_prompt.txt" >> .gitignore
+
+          # 3. 关键：将上述修改全部提交
+          git add -A
+          git commit -m "chore: sanitize codebase and update gitignore" || echo "No changes to commit"
           echo "::endgroup::"
 
-          # 3. 生成 Provider 配置
-          echo "::group::Generating opencode.json"
+          # 4. 生成被忽略的 Provider 配置 (此时它已经是 ignored 状态，git checkout 会跳过它)
+          echo "::group::Generating ignored opencode.json"
           cat << EOF > opencode.json
           {
             "\$schema": "https://opencode.ai/config.json",
@@ -142,12 +150,6 @@ jobs:
             }
           }
           EOF
-          echo "::endgroup::"
-
-          # 4. 关键：Pre-emptive Commit
-          echo "::group::Finalizing Environment"
-          git add -A
-          git commit -m "chore: prepare environment for Opencode Agent (sanitize & config)" || echo "No changes to commit"
           echo "::endgroup::"
 
       - name: Prepare Prompt
@@ -189,6 +191,7 @@ jobs:
           fi
 
           { echo 'prompt<<EOF'; cat final_prompt.txt; echo 'EOF'; } >> "$GITHUB_OUTPUT"
+          # 注意：由于我们在 .gitignore 里加了它们，这里不用手动删也没关系，但为了整洁可以删
           rm -f guidelines.txt final_prompt.txt
 
       - name: Notify TG (Agent Start)
