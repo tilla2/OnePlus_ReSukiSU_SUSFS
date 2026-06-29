@@ -65,16 +65,13 @@ jobs:
           (github.event_name == 'pull_request_review_comment' && github.event.comment.user.type != 'Bot' && (contains(github.event.comment.body, ' /oc') || startsWith(github.event.comment.body, '/oc') || contains(github.event.comment.body, ' /opencode') || startsWith(github.event.comment.body, '/opencode')))
         )
     runs-on: ubuntu-latest
-    env:
-      # Quiet opencode's internal pino spam (`INFO (#NNNN): created/stream/
-      # tracking …`). In the binary, the stderr log printer is attached only
-      # when process.env.OPENCODE_PRINT_LOGS === "1":
-      #   lJ(){ return OPENCODE_PRINT_LOGS==="1" ? [transport, printer] : [transport] }
-      # The agent's own output (tool calls, "Response: …") goes straight to
-      # stdout, NOT through this logger, so disabling the printer keeps the
-      # useful transcript while dropping the INFO noise. (--log-level /
-      # OPENCODE_LOG_LEVEL had no effect in CI; this is the actual gate.)
-      OPENCODE_PRINT_LOGS: "0"
+    # NOTE: opencode's `opencode github run` emits ~21 lines of internal
+    # INFO (#NNNN) telemetry/pino logs that CANNOT be suppressed from this
+    # workflow — verified in CI that LOG_LEVEL, OPENCODE_LOG_LEVEL and
+    # OPENCODE_PRINT_LOGS all have no effect (the lines come from the
+    # always-on OpenTelemetry logger, not the env-gated stderr printer).
+    # The agent's own tool/Shell transcript prints to stdout regardless.
+    # Removing the noise would require forking/wrapping the action.
     permissions:
       id-token: write
       contents: write
