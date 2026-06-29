@@ -9,12 +9,7 @@
       },
       "models": {
         "${OPENAI_MODEL}": {
-          "name": "Custom Model",
-          "reasoning": false,
-          "limit": {
-            "context": 200000,
-            "output": 8192
-          }
+          "name": "Custom Model"
         }
       }
     }
