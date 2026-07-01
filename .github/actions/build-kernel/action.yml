@@ -985,6 +985,29 @@ runs:
         echo "✅ ReSukiSU added (commit: ${KSU_COMMIT_SHA:0:8})"
         echo "::endgroup::"
 
+    - name: Apply recovery-skip patch to ReSukiSU
+  shell: bash
+  if: ${{ inputs.ksu_type == 'ReSukiSU' }}
+  run: |
+    set -euo pipefail
+    echo "::group::Apply recovery-skip patch"
+    # The patch file lives in the workflow repo (action-source/), NOT in
+    # WildKernels/kernel_patches — so we use action-source as the source root.
+    PATCH="$GITHUB_WORKSPACE/action-source/patches/resukisu-skip-recovery.patch"
+    if [ ! -f "$$PATCH" ]; then
+      echo "::warning::resukisu-skip-recovery.patch not found at $$PATCH — skipping"
+    else
+      cd "$KSU_FOLDER"
+      echo "Applying recovery-skip patch against ReSukiSU source..."
+      if ! patch -p1 --fuzz=3 --forward < "$PATCH"; then
+        echo "::error::ReSukiSU recovery-skip patch failed. Rejects:"
+        find . -name "*.rej" -exec echo "=== {} ===" \; -exec cat {} \;
+        exit 1
+      fi
+      echo "✅ recovery-skip patch applied"
+    fi
+    echo "::endgroup::"
+
     - name: Apply SUSFS Patches
       shell: bash
       if: ${{ env.OP_SUSFS == 'true' }}
