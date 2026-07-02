@@ -33,4 +33,3 @@
 +		return 0;
 +	}
  	pr_info("Initialized on: %s (%s) with driver version: %u\n", UTS_RELEASE, UTS_MACHINE, KSU_VERSION);
-  \n
