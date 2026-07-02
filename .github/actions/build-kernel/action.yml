@@ -1018,34 +1018,31 @@ runs:
         f="$KSU_FOLDER/kernel/core/init.c"
         echo "::group::Patched init.c — recovery-skip region"
 
-      # 1) Helper exists and sits ABOVE kernelsu_init
-      helper_line=$(grep -nE '^[[:space:]]*static bool __init ksu_is_recovery_boot\b' "$f" | head -1 | cut -d: -f1)
-      init_line=$(grep -nE '^[[:space:]]*int __init kernelsu_init\b' "$f" | head -1 | cut -d: -f1)
-      if [ -z "$helper_line" ]; then echo "::error::ksu_is_recovery_boot() helper missing"; exit 1; fi
-      if [ -z "$init_line" ]; then echo "::error::kernelsu_init() not found"; exit 1; fi
-      if [ "$helper_line" -ge "$init_line" ]; then
-        echo "::error::helper at line $helper_line is not above kernelsu_init at line $init_line"
-        exit 1
-      fi
-      echo " helper at line $helper_line | kernelsu_init at line $init_line"
+        # 1) Helper exists and sits ABOVE kernelsu_init
+        helper_line=$(grep -nE '^[[:space:]]*static bool __init ksu_is_recovery_boot\b' "$f" | head -1 | cut -d: -f1)
+        init_line=$(grep -nE '^[[:space:]]*int __init kernelsu_init\b'                 "$f" | head -1 | cut -d: -f1)
+        if [ -z "$helper_line" ]; then echo "::error::ksu_is_recovery_boot() helper missing"; exit 1; fi
+        if [ -z "$init_line" ];   then echo "::error::kernelsu_init() not found";               exit 1; fi
+        if [ "$helper_line" -ge "$init_line" ]; then
+          echo "::error::helper at line $helper_line is not above kernelsu_init at line $init_line"
+          exit 1
+        fi
+        echo "  helper at line $helper_line  |  kernelsu_init at line $init_line"
 
-      # 2) The guard is the FIRST statement inside kernelsu_init()
-      # Take the region from the signature onward, drop the signature line,
-      # blank lines, and standalone "{" — the first remaining line must be our guard.
-      region=$(sed -n "${init_line},$((init_line+15))p" "$f")
-      first_stmt=$(printf '%s\n' "$region" \
-      | sed -e '1d' -e '/^[[:space:]]*$/d' -e '/^[[:space:]]*{/d' \
-      | head -1)
-      if ! printf '%s' "$first_stmt" | grep -qE '^[[:space:]]*if[[:space:]]*\(ksu_is_recovery_boot'; then
-        echo "::error::guard is NOT the first statement in kernelsu_init():"
-        printf '%s\n' "$region" | sed -n '1,8p'
-        exit 1
-      fi
-      echo " ✅ guard is first statement inside kernelsu_init()"
+        # 2) Guard is the FIRST statement inside kernelsu_init()
+        region=$(sed -n "${init_line},$((init_line+15))p" "$f")
+        first_stmt=$(printf '%s\n' "$region" \
+                     | sed -e '1d' -e '/^[[:space:]]*$/d' -e '/^[[:space:]]*{/d' \
+                     | head -1)
+        if ! printf '%s' "$first_stmt" | grep -qE '^[[:space:]]*if[[:space:]]*\(ksu_is_recovery_boot'; then
+          echo "::error::guard is NOT the first statement in kernelsu_init():"
+          printf '%s\n' "$region" | sed -n '1,8p'
+          exit 1
+        fi
+        echo "  ✅ guard is first statement inside kernelsu_init()"
 
-      # Show what actually got applied
-      sed -n "$((helper_line-1)),$((init_line+6))p" "$f"
-      echo "::endgroup::"
+        sed -n "$((helper_line-1)),$((init_line+6))p" "$f"
+        echo "::endgroup::"
         
     - name: Apply SUSFS Patches
       shell: bash
