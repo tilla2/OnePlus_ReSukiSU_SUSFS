@@ -996,7 +996,7 @@ runs:
         # WildKernels/kernel_patches — so we use action-source as the source root.
         
         PATCH="$GITHUB_WORKSPACE/action-source/patches/resukisu-skip-recovery.patch"
-        if [ ! -f "$$PATCH" ]; then
+        if [ ! -f "$PATCH" ]; then
           echo "::warning::resukisu-skip-recovery.patch not found at $$PATCH — skipping"
         else
           cd "$KSU_FOLDER"
