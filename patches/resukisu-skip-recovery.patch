@@ -1,38 +1,24 @@
 --- a/kernel/core/init.c
 +++ b/kernel/core/init.c
-@@ -55,6 +55,46 @@
+@@ -55,6 +55,32 @@
  bool ksu_no_custom_rc = false;
  module_param_named(norc, ksu_no_custom_rc, bool, 0);
  
 +/*
-+ * Skip KSU initialization when booting into a recovery ramdisk to avoid
-+ * null-deref panic when ReSukiSU's sepolicy rules are applied against a
-+ * recovery policy that lacks the system's anchor types (su, ksu, ksu_mt...).
-+ * Only the kernel image is shared between system and recovery boots; the
-+ * ramdisk/commandline differ, so KSU cannot re-load its rules safely on a
-+ * recovery-mode policy. The system-slot boot path is untouched.
-+ *
-+ * Detection is by substring scan of saved_command_line only. Do NOT attempt
-+ * to read the BCB from /dev/block/by-name/misc here:
-+ *   (1) the block layer is not guaranteed up at this hook,
-+ *   (2) ABL may have already cleared the BCB command field,
-+ *   (3) key-combo recovery boots never write the BCB in the first place,
-+ *   (4) misc partition offsets are board-specific and fragile.
-+ * Cmdline tokens are populated by ABL before jumps_to_kernel and are always
-+ * available; this is the correct layer for the check.
++ * Skip KSU init on recovery boots: the recovery ramdisk's sepolicy lacks the
++ * anchor types KSU's sepolicy.rule expects, so applying them here null-derefs.
++ * Detection is a substring scan of saved_command_line.
 + */
 +static bool __init ksu_is_recovery_boot(void)
 +{
 +	const char *cmd = saved_command_line;
 +	if (!cmd)
 +		return false;
-+	/* Primary token: always emitted by Xiaomi ABL on BCB-driven recovery boots. */
++	/* Primary token: emitted by Xiaomi ABL on BCB-driven recovery boots. */
 +	if (strstr(cmd, "androidboot.mode=recovery") != NULL)
 +		return true;
-+	/* Secondary tokens: defensive coverage for key-combo / eng-bootloader
-+	 * cases where mode= is absent but boot_mode= or bootreason= is set to
-+	 * "recovery". Same mechanism (strstr on cmdline), just additional tokens;
-+	 * not a BCB read despite the overloaded "bootreason" name.
++	/* Secondary tokens: key-combo / eng-bootloader cases where mode= is absent
++	 * but boot_mode= or bootreason= is set to "recovery".
 +	 */
 +	if (strstr(cmd, "androidboot.boot_mode=recovery") != NULL ||
 +	    strstr(cmd, "androidboot.bootreason=recovery") != NULL)
@@ -43,7 +29,7 @@
  int __init kernelsu_init(void)
  {
 +	if (ksu_is_recovery_boot()) {
-+		pr_info("KernelSU: recovery boot detected, skipping init to avoid sepolicy conflict\n");
++		pr_info("KernelSU: recovery boot detected, skipping init\n");
 +		return 0;
 +	}
  	pr_info("Initialized on: %s (%s) with driver version: %u\n", UTS_RELEASE, UTS_MACHINE, KSU_VERSION);
