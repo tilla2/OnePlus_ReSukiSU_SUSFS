@@ -1,6 +1,6 @@
 --- a/kernel/core/init.c
 +++ b/kernel/core/init.c
-@@ -55,6 +55,30 @@
+@@ -55,6 +55,46 @@
  bool ksu_no_custom_rc = false;
  module_param_named(norc, ksu_no_custom_rc, bool, 0);
  
