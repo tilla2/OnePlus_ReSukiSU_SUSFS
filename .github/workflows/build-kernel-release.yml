@@ -917,7 +917,7 @@ jobs:
                 susfs_ver="none"
               fi
               full_model="${model}_${os_version}_${kernel_version}"
-              device_info["$full_model"]="$model|$os_version|$kernel_version|$ksu_type|$ksu_ver|$susfs_ver"
+              device_info["$full_model"]="$model|$os_version|$kernel_version|$ksu_type|$ksu_ver|$susfs_ver|$zipname"
             fi
           done
           
@@ -1029,7 +1029,7 @@ jobs:
           
           if [ ${#device_info[@]} -gt 0 ]; then
             first_entry=$(printf '%s\n' "${!device_info[@]}" | sort | head -n1)
-            IFS='|' read -r _ _ _ _ _ ksu_ver_global _ <<< "${device_info["$first_entry"]}"
+            IFS='|' read -r _ _ _ _ ksu_ver_global _ _ <<< "${device_info["$first_entry"]}"
           else
             echo "::error::No device info found!" >&2
             exit 1
