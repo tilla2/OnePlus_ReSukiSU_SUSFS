@@ -1,0 +1,35 @@
+--- a/kernel/core/init.c
++++ b/kernel/core/init.c
+@@ -55,6 +55,32 @@
+ bool ksu_no_custom_rc = false;
+ module_param_named(norc, ksu_no_custom_rc, bool, 0);
+ 
++/*
++ * Skip KSU init on recovery boots: the recovery ramdisk's sepolicy lacks the
++ * anchor types KSU's sepolicy.rule expects, so applying them here null-derefs.
++ * Detection is a substring scan of saved_command_line.
++ */
++static bool __init ksu_is_recovery_boot(void)
++{
++	const char *cmd = saved_command_line;
++	if (!cmd)
++		return false;
++	/* Primary token: emitted by Xiaomi ABL on BCB-driven recovery boots. */
++	if (strstr(cmd, "androidboot.mode=recovery") != NULL)
++		return true;
++	/* Secondary tokens: key-combo / eng-bootloader cases where mode= is absent
++	 * but boot_mode= or bootreason= is set to "recovery".
++	 */
++	if (strstr(cmd, "androidboot.boot_mode=recovery") != NULL ||
++	    strstr(cmd, "androidboot.bootreason=recovery") != NULL)
++		return true;
++	return false;
++}
++
+ int __init kernelsu_init(void)
+ {
++	if (ksu_is_recovery_boot()) {
++		pr_info("KernelSU: recovery boot detected, skipping init\n");
++		return 0;
++	}
+ 	pr_info("Initialized on: %s (%s) with driver version: %u\n", UTS_RELEASE, UTS_MACHINE, KSU_VERSION);

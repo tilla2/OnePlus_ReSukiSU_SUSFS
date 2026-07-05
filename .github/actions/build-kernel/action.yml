@@ -984,7 +984,66 @@ runs:
         echo "ReSukiSU Version: $KSU_VERSION"
         echo "✅ ReSukiSU added (commit: ${KSU_COMMIT_SHA:0:8})"
         echo "::endgroup::"
+        
+    - name: Apply recovery-skip patch to ReSukiSU
+      shell: bash
+      if: ${{ inputs.ksu_type == 'ReSukiSU' }}
+      run: |
+        set -euo pipefail
+        echo "::group::Apply recovery-skip patch"
+        
+        # The patch file lives in the workflow repo (action-source/), NOT in
+        # WildKernels/kernel_patches — so we use action-source as the source root.
+        
+        PATCH="$GITHUB_WORKSPACE/action-source/patches/resukisu-skip-recovery.patch"
+        if [ ! -f "$PATCH" ]; then
+          echo "::warning::resukisu-skip-recovery.patch not found at $PATCH — skipping"
+        else
+          cd "$KSU_FOLDER"
+          echo "Applying recovery-skip patch against ReSukiSU source..."
+          if ! patch -p1 --fuzz=3 --forward < "$PATCH"; then
+            echo "::error::ReSukiSU recovery-skip patch failed. Rejects:"
+            find . -name "*.rej" -exec echo "=== {} ===" \; -exec cat {} \;
+            exit 1
+          fi
+          echo "✅ recovery-skip patch applied"
+        fi
+        echo "::endgroup::"
+        
+    - name: Verify recovery-skip patch landed correctly
+      if: ${{ inputs.ksu_type == 'ReSukiSU' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        f="$KSU_FOLDER/kernel/core/init.c"
+        echo "::group::Patched init.c — recovery-skip region"
 
+        # 1) Helper exists and sits ABOVE kernelsu_init
+        helper_line=$(grep -nE '^[[:space:]]*static bool __init ksu_is_recovery_boot\b' "$f" | head -1 | cut -d: -f1)
+        init_line=$(grep -nE '^[[:space:]]*int __init kernelsu_init\b'                 "$f" | head -1 | cut -d: -f1)
+        if [ -z "$helper_line" ]; then echo "::error::ksu_is_recovery_boot() helper missing"; exit 1; fi
+        if [ -z "$init_line" ];   then echo "::error::kernelsu_init() not found";               exit 1; fi
+        if [ "$helper_line" -ge "$init_line" ]; then
+          echo "::error::helper at line $helper_line is not above kernelsu_init at line $init_line"
+          exit 1
+        fi
+        echo "  helper at line $helper_line  |  kernelsu_init at line $init_line"
+
+        # 2) Guard is the FIRST statement inside kernelsu_init()
+        region=$(sed -n "${init_line},$((init_line+15))p" "$f")
+        first_stmt=$(printf '%s\n' "$region" \
+                     | sed -e '1d' -e '/^[[:space:]]*$/d' -e '/^[[:space:]]*{/d' \
+                     | head -1)
+        if ! printf '%s' "$first_stmt" | grep -qE '^[[:space:]]*if[[:space:]]*\(ksu_is_recovery_boot'; then
+          echo "::error::guard is NOT the first statement in kernelsu_init():"
+          printf '%s\n' "$region" | sed -n '1,8p'
+          exit 1
+        fi
+        echo "  ✅ guard is first statement inside kernelsu_init()"
+
+        sed -n "$((helper_line-1)),$((init_line+6))p" "$f"
+        echo "::endgroup::"
+        
     - name: Apply SUSFS Patches
       shell: bash
       if: ${{ env.OP_SUSFS == 'true' }}
