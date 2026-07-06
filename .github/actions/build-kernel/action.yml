@@ -1001,7 +1001,7 @@ runs:
         else
           cd "$KSU_FOLDER"
           echo "Applying recovery-skip patch against ReSukiSU source..."
-          if ! patch -p1 --forward < "$PATCH"; then
+          patch -p1 --forward < "$PATCH"; then
             echo "::error::ReSukiSU recovery-skip patch failed. Rejects:"
             find . -name "*.rej" -exec echo "=== {} ===" \; -exec cat {} \;
             exit 1
